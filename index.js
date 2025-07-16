@@ -5,31 +5,42 @@ const { Server } = require("socket.io");
 
 const app = express();
 app.use(cors());
+
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "https://react-chat-eta-seven.vercel.app/",
+    origin: "https://react-chat-eta-seven.vercel.app", // sans slash final !
     methods: ["GET", "POST"],
   },
 });
 
-const users = {};
+const users = {}; // socket.id => username
 
 io.on("connection", (socket) => {
   console.log("User connected", socket.id);
 
-  socket.on("join-user", (username) => {
+  socket.on("join_user", (username) => {  // CORRECTION: join_user (underscore)
     users[socket.id] = username;
     console.log(`${username} connected`);
+
+    // Envoyer la liste des utilisateurs connectés à tous
+    io.emit("users_list", Object.values(users));
   });
 
-  socket.on("join-private-room", ({ room }) => {
+  socket.on("join_private_room", ({ room }) => {
     socket.join(room);
-    console.log(`${username} join the room ${room}`);
+    const username = users[socket.id];
+    console.log(`${username} joined the room ${room}`);
+
+    // Envoyer à ce socket la confirmation qu’il a rejoint la room
+    socket.emit("room_joined", room);
+
+    // Optionnel: envoyer la liste des rooms actives à tous (à adapter si tu veux)
+    // Ici on ne gère pas la liste globale des rooms, tu peux améliorer plus tard
   });
 
-  socket.on("private-message", ({ room, message }) => {
+  socket.on("private_message", ({ room, message }) => {
     const username = users[socket.id];
     console.log(`Message from ${username} in ${room}: ${message}`);
 
@@ -40,9 +51,16 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    const username = users[socket.id];
+    console.log(`${username} disconnected`);
     delete users[socket.id];
+
+    // Mettre à jour la liste des utilisateurs connectés
+    io.emit("users_list", Object.values(users));
   });
 });
-server.listen(3001, () => {
-  console.log("Chat server is running on port 3001");
+
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => {
+  console.log(`Chat server is running on port ${PORT}`);
 });
